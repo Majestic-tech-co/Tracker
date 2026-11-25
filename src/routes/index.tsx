@@ -198,6 +198,15 @@ function TrackerPage() {
     setModal({ open: true, title, message, onConfirm, confirmLabel: "Delete", cancelLabel: "Cancel" });
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
 
+  useEffect(() => {
+    if (!modal.open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModal((m) => ({ ...m, open: false }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [modal.open]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="bg-card border-b border-border">
@@ -242,10 +251,10 @@ function TrackerPage() {
               <WalksTab draft={draft} walks={walks} setWalks={setWalks} showAlert={showAlert} showConfirm={showConfirm} />
             )}
             {tab === "workouts" && (
-              <WorkoutsTab workout={workout} setWorkout={setWorkout} dailyData={dailyData} setDailyData={setDailyData} showAlert={showAlert} />
+              <WorkoutsTab workout={workout} setWorkout={setWorkout} setDailyData={setDailyData} showAlert={showAlert} />
             )}
             {tab === "steps" && <StepsTab dailyData={dailyData} setDailyData={setDailyData} showAlert={showAlert} />}
-            {tab === "calendar" && <CalendarTab dailyData={dailyData} />}
+            {tab === "calendar" && <CalendarTab dailyData={dailyData} walks={walks} />}
           </aside>
         </div>
       </div>
@@ -273,6 +282,7 @@ function TrackerPage() {
                   modal.onConfirm?.();
                   closeModal();
                 }}
+                autoFocus
                 className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-semibold hover:opacity-90"
               >
                 {modal.confirmLabel ?? "OK"}
@@ -346,7 +356,7 @@ function WalksTab({
     if (!canSave) return;
     setRecording(false);
     const newWalk: Walk = {
-      id: editingId ?? Date.now(),
+      id: editingId ?? Date.now() + Math.floor(Math.random() * 1000),
       walkName,
       walkDate,
       walkNotes,
@@ -585,13 +595,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function WorkoutsTab({
   workout,
   setWorkout,
-  dailyData,
   setDailyData,
   showAlert,
 }: {
   workout: Workout | null;
   setWorkout: (w: Workout | null | ((prev: Workout | null) => Workout | null)) => void;
-  dailyData: DailyData;
   setDailyData: (d: DailyData | ((prev: DailyData) => DailyData)) => void;
   showAlert: (t: string, m: string) => void;
 }) {
@@ -747,8 +755,6 @@ function WorkoutsTab({
           </button>
         </div>
       )}
-      {/* Silence unused warning */}
-      <span className="hidden">{Object.keys(dailyData).length}</span>
     </div>
   );
 }
@@ -837,7 +843,7 @@ function StepsTab({
 
 /* ---------------- Calendar ---------------- */
 
-function CalendarTab({ dailyData }: { dailyData: DailyData }) {
+function CalendarTab({ dailyData, walks }: { dailyData: DailyData; walks: Walk[] }) {
   const [viewed, setViewed] = useState(new Date());
   const [selected, setSelected] = useState(new Date());
 
@@ -848,6 +854,8 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
   const todayKey = dateToString(new Date());
   const selectedKey = dateToString(selected);
   const dayData = dailyData[selectedKey];
+  const walkDates = useMemo(() => new Set(walks.map((w) => w.walkDate)), [walks]);
+  const dayWalks = walks.filter((w) => w.walkDate === selectedKey);
 
   function shift(delta: number) {
     setViewed(new Date(year, month + delta, 1));
@@ -891,9 +899,15 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
           const data = dailyData[key];
           const isToday = key === todayKey;
           const isSelected = key === selectedKey;
+          const hasWalk = walkDates.has(key);
+          const summary = [hasWalk && "walk", data?.workout && "workout", data?.steps !== undefined && "steps"]
+            .filter(Boolean)
+            .join(", ");
           return (
             <button
               key={d}
+              aria-label={`${key}${summary ? `: ${summary}` : ""}`}
+              aria-pressed={isSelected}
               onClick={() => setSelected(new Date(year, month, d))}
               className={`relative aspect-square rounded-md text-sm font-medium border transition-all ${
                 isSelected
@@ -905,6 +919,7 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
             >
               {d}
               <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+                {hasWalk && <span className="w-1.5 h-1.5 rounded-full bg-secondary" />}
                 {data?.workout && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
                 {data?.steps !== undefined && <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />}
               </div>
@@ -915,11 +930,19 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
 
       <div className="mt-4 border-t border-border pt-4">
         <h4 className="font-semibold mb-3">Daily Data for {selectedKey}</h4>
-        {!dayData || (dayData.steps === undefined && !dayData.workout) ? (
+        {dayWalks.length === 0 && (!dayData || (dayData.steps === undefined && !dayData.workout)) ? (
           <p className="italic text-muted-foreground text-sm">No data saved for this day.</p>
         ) : (
           <div className="space-y-4">
-            {dayData.steps !== undefined && (
+            {dayWalks.map((w) => (
+              <div key={w.id} className="bg-muted/40 border border-border rounded-lg p-3">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Walk</div>
+                <div className="font-semibold">{w.walkName}</div>
+                <div className="text-sm text-secondary font-medium">{w.distance.toFixed(2)} km</div>
+                {w.walkNotes && <div className="text-xs text-muted-foreground mt-1">{w.walkNotes}</div>}
+              </div>
+            ))}
+            {dayData?.steps !== undefined && (
               <div className="bg-muted/40 border border-border rounded-lg p-3">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider">Steps Count</div>
                 <div className="text-2xl font-bold text-tertiary">{dayData.steps.toLocaleString()}</div>
@@ -928,7 +951,7 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
                 </div>
               </div>
             )}
-            {dayData.workout && (
+            {dayData?.workout && (
               <div className="bg-muted/40 border border-border rounded-lg p-3">
                 <h5 className="font-semibold mb-2">{dayData.workout.name}</h5>
                 <div className="space-y-2">

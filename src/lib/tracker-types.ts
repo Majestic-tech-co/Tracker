@@ -69,7 +69,14 @@ export function generateSingleDayWorkoutPlan(): Workout {
     lowerBody: ["Squats", "Lunges", "Deadlifts", "Leg Press", "Calf Raises", "Glute Bridges"],
     core: ["Plank", "Crunches", "Leg Raises", "Russian Twists", "Bird-dog"],
   };
-  const pick = (arr: string[], n: number) => [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
+  const pick = (arr: string[], n: number) => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+  };
   const selected = [...pick(pool.upperBody, 2), ...pick(pool.lowerBody, 2), ...pick(pool.core, 1)];
   const name = "Full Body Strength";
   return {
