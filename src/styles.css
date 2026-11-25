@@ -33,34 +33,29 @@
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Dark tracker palette */
-  --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
-  --card: oklch(0.18 0 0);
-  --card-foreground: oklch(1 0 0);
-  --popover: oklch(0.18 0 0);
-  --popover-foreground: oklch(1 0 0);
-  --primary: oklch(0.78 0.115 188);          /* #49c5b6 teal */
-  --primary-foreground: oklch(0 0 0);
-  --secondary: oklch(0.87 0.13 95);          /* #ecd06f gold */
-  --secondary-foreground: oklch(0 0 0);
-  --tertiary: oklch(0.55 0.25 295);          /* #9333ea purple */
-  --tertiary-foreground: oklch(1 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.7 0 0);
-  --accent: oklch(0.22 0 0);
-  --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.6 0.22 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.25 0 0);
-  --input: oklch(0.25 0 0);
-  --ring: oklch(0.78 0.115 188);
-}
-
-.dark {
-  --background: oklch(0 0 0);
-  --foreground: oklch(1 0 0);
+  --radius: 0.625rem;
+  /* Light, professional palette: navy primary, teal + amber accents */
+  --background: oklch(0.975 0.004 255);
+  --foreground: oklch(0.22 0.03 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.03 258);
+  --primary: oklch(0.4 0.12 258);            /* navy */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.55 0.13 70);          /* dark amber */
+  --secondary-foreground: oklch(0.99 0 0);
+  --tertiary: oklch(0.55 0.11 185);          /* teal */
+  --tertiary-foreground: oklch(0.99 0 0);
+  --muted: oklch(0.955 0.006 255);
+  --muted-foreground: oklch(0.48 0.025 258);
+  --accent: oklch(0.955 0.006 255);
+  --accent-foreground: oklch(0.22 0.03 258);
+  --destructive: oklch(0.55 0.21 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.91 0.008 255);
+  --input: oklch(0.91 0.008 255);
+  --ring: oklch(0.4 0.12 258);
 }
 
 @layer base {
@@ -71,15 +66,19 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  [role="tab"]:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
   }
 }
 
-/* Leaflet popup tweaks for dark theme */
+/* Leaflet */
 .leaflet-container {
-  background: #0a0a0a;
-  border-radius: 8px;
-}
-.leaflet-popup-content-wrapper, .leaflet-popup-tip {
-  background: #1a1a1a;
-  color: #fff;
+  background: #e5e9f0;
+  border-radius: 12px;
+  font-family: inherit;
 }

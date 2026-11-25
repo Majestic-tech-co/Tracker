@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { z } from "zod";
-import { ChevronLeft, ChevronRight, Pencil, Trash2, Check, X } from "lucide-react";
-import { WalkMap } from "@/components/tracker/WalkMap";
+import { ChevronLeft, ChevronRight, Footprints, Pencil, Trash2, Check, X } from "lucide-react";
+import { LazyWalkMap as WalkMap } from "@/components/tracker/LazyWalkMap";
 import {
   type DailyData,
   type Exercise,
@@ -200,32 +200,43 @@ function TrackerPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-[1400px] mx-auto border-x border-border min-h-screen bg-[#0a0a0a]">
-        <nav className="flex justify-center mx-4 sm:mx-8 pt-6 border-b border-border overflow-x-auto">
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex-1 max-w-[180px] mx-1 px-4 sm:px-6 py-3 rounded-t-lg font-semibold text-sm sm:text-base transition-all whitespace-nowrap border-b-[3px] ${
-                  active
-                    ? "bg-primary text-primary-foreground border-primary -translate-y-[5px] shadow-[0_4px_10px_-2px_rgba(0,0,0,0.5)]"
-                    : "bg-card text-muted-foreground border-transparent hover:bg-border hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </nav>
+      <header className="bg-card border-b border-border">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8">
+          <div className="flex items-center gap-3 py-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Footprints size={20} aria-hidden="true" />
+            </div>
+            <div className="leading-tight">
+              <div className="text-base font-semibold tracking-tight">A Step in the Right Direction</div>
+              <div className="text-xs text-muted-foreground">Walk, workout and step tracker</div>
+            </div>
+          </div>
+          <nav role="tablist" aria-label="Sections" className="-mb-px flex gap-1 overflow-x-auto">
+            {TABS.map((t) => {
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(t.key)}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    active
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
 
-        <div className="flex flex-col lg:flex-row min-h-[calc(100vh-120px)] pt-4">
-          <aside
-            className={`${
-              tab === "walks" ? "lg:w-[380px]" : "w-full"
-            } p-4 sm:p-8 border-r border-border bg-card overflow-y-auto`}
-          >
+      <div className="max-w-6xl mx-auto">
+        <div>
+          <aside className="w-full p-4 sm:p-8">
             {tab === "welcome" && <WelcomeTab />}
             {tab === "walks" && (
               <WalksTab draft={draft} walks={walks} setWalks={setWalks} showAlert={showAlert} showConfirm={showConfirm} />
@@ -240,10 +251,11 @@ function TrackerPage() {
       </div>
 
       {modal.open && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[2000] p-4" onClick={closeModal}>
+        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm flex items-center justify-center z-[2000] p-4" onClick={closeModal}>
           <div
+            role="dialog" aria-modal="true" aria-label={modal.title}
             onClick={(e) => e.stopPropagation()}
-            className={`bg-card border ${modal.celebration ? "border-secondary shadow-[0_0_40px_rgba(236,208,111,0.4)]" : "border-border"} rounded-lg p-6 max-w-md w-full`}
+            className={`bg-card border ${modal.celebration ? "border-secondary shadow-xl ring-1 ring-secondary" : "border-border"} rounded-xl p-6 max-w-md w-full shadow-xl`}
           >
             <h3 className={`text-xl font-bold mb-2 ${modal.celebration ? "text-secondary" : "text-foreground"}`}>{modal.title}</h3>
             <p className="text-muted-foreground mb-6">{modal.message}</p>
@@ -277,16 +289,29 @@ function TrackerPage() {
 
 function WelcomeTab() {
   return (
-    <div className="max-w-3xl mx-auto text-center py-8 sm:py-16">
-      <h1 className="text-4xl sm:text-5xl font-bold text-foreground">A Step in the Right Direction</h1>
-      <p className="mt-3 text-xl text-primary font-semibold">Your Walk, Your Workout.</p>
-      <p className="mt-8 text-muted-foreground leading-relaxed text-left sm:text-center">
-        Embark on a personal fitness journey with 'A Step in the Right Direction,' the ultimate tool
-        for tracking your physical activity. Plan and record your walking routes with a tap on the map,
-        generate dynamic single-day workout plans, and log your daily step count. Every walk, workout,
-        and step appears on a single calendar so you can see your progress at a glance. It's time to
-        own your routine.
-      </p>
+    <div className="max-w-4xl mx-auto py-6 sm:py-12">
+      <div className="text-center">
+        <p className="text-sm font-semibold uppercase tracking-widest text-tertiary">Your Walk, Your Workout</p>
+        <h1 className="mt-3 text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
+          A Step in the Right Direction
+        </h1>
+        <p className="mt-5 mx-auto max-w-2xl text-lg text-muted-foreground leading-relaxed">
+          Record your walking routes on a map, generate single-day workout plans, and log your daily
+          steps. Everything lands on one calendar so you can see your progress at a glance.
+        </p>
+      </div>
+      <div className="mt-12 grid gap-4 sm:grid-cols-3">
+        {[
+          { title: "Walks", body: "Trace a route with GPS or a tap on the map and track the distance." },
+          { title: "Workouts", body: "Generate a full-body plan, adjust it, and log every set." },
+          { title: "Steps", body: "Track daily steps against your goal and review them by date." },
+        ].map((f) => (
+          <div key={f.title} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="font-semibold text-foreground">{f.title}</h2>
+            <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{f.body}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -369,8 +394,9 @@ function WalksTab({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-sm text-muted-foreground bg-muted/50 border border-border rounded-md p-3 space-y-3">
+    <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)] items-start">
+      <div className="space-y-6 min-w-0">
+      <div className="text-sm text-muted-foreground bg-card border border-border rounded-xl shadow-sm p-4 space-y-3">
         <p>
           {recording
             ? "Recording your walk. Your path is drawn automatically."
@@ -397,7 +423,7 @@ function WalksTab({
         {geoError && <p className="text-destructive" role="alert">{geoError}</p>}
       </div>
 
-      <div className="bg-background border border-border rounded-lg p-5 space-y-4">
+      <div className="bg-card border border-border rounded-xl shadow-sm p-5 space-y-4">
         <form onSubmit={handleSearch} className="space-y-2">
           <label className="block text-sm font-medium">Find a starting point</label>
           <div className="flex gap-2">
@@ -406,7 +432,7 @@ function WalksTab({
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
               placeholder="Enter a location"
-              className="flex-1 px-3 py-2 rounded-md bg-card border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="flex-1 px-3 py-2 rounded-md bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <button type="submit" className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-semibold">
               Search
@@ -429,7 +455,7 @@ function WalksTab({
               required
               value={walkName}
               onChange={(e) => setWalkName(e.target.value)}
-              className="w-full px-3 py-2 rounded-md bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-3 py-2 rounded-md bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
           <Field label="Date">
@@ -438,7 +464,7 @@ function WalksTab({
               required
               value={walkDate}
               onChange={(e) => setWalkDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-md bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-3 py-2 rounded-md bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </Field>
           <div className="bg-primary/10 border border-primary/30 rounded-md p-3 flex justify-between">
@@ -451,7 +477,7 @@ function WalksTab({
               onChange={(e) => setWalkNotes(e.target.value)}
               placeholder="Add any notes about your walk..."
               rows={3}
-              className="w-full px-3 py-2 rounded-md bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              className="w-full px-3 py-2 rounded-md bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </Field>
           <div className="flex gap-2">
@@ -482,16 +508,6 @@ function WalksTab({
           onAddPoint={(p) => setPath((prev) => [...prev, p])}
         />
       </div>
-      <div className="hidden lg:block fixed top-[120px] right-[max(0px,calc((100vw-1400px)/2))] left-auto w-[calc(min(1400px,100vw)-380px-2rem)] h-[calc(100vh-160px)] p-8 pointer-events-none">
-        <div className="w-full h-full pointer-events-auto">
-          <WalkMap
-            path={path}
-            liveLocation={liveLocation}
-            flyTo={flyTo}
-            onAddPoint={(p) => setPath((prev) => [...prev, p])}
-          />
-        </div>
-      </div>
 
       <div>
         <h3 className="text-lg font-semibold mb-3">Previous Walks</h3>
@@ -503,7 +519,7 @@ function WalksTab({
               <li
                 key={walk.id}
                 className={`flex items-start justify-between gap-3 p-3 rounded-md border ${
-                  editingId === walk.id ? "border-primary bg-primary/5" : "border-border bg-background"
+                  editingId === walk.id ? "border-primary bg-primary/5" : "border-border bg-card"
                 }`}
               >
                 <button
@@ -540,6 +556,16 @@ function WalksTab({
             ))}
           </ul>
         )}
+      </div>
+      </div>
+
+      <div className="hidden lg:block sticky top-6 h-[calc(100vh-3rem)] min-h-[420px] rounded-xl overflow-hidden border border-border shadow-sm">
+        <WalkMap
+          path={path}
+          liveLocation={liveLocation}
+          flyTo={flyTo}
+          onAddPoint={(p) => setPath((prev) => [...prev, p])}
+        />
       </div>
     </div>
   );
@@ -597,7 +623,7 @@ function WorkoutsTab({
   }
 
   return (
-    <div className="max-w-3xl mx-auto bg-background border border-border rounded-lg p-5 space-y-4">
+    <div className="max-w-3xl mx-auto bg-card border border-border rounded-xl shadow-sm p-5 space-y-4">
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setWorkout(generateSingleDayWorkoutPlan())}
@@ -633,7 +659,7 @@ function WorkoutsTab({
             className="w-full text-2xl font-bold bg-transparent border-b border-border focus:outline-none focus:border-primary py-1"
           />
           {workout.exercises.map((ex) => (
-            <div key={ex.id} className="border border-border rounded-md p-3 space-y-2 bg-card">
+            <div key={ex.id} className="border border-border rounded-lg p-3 space-y-2 bg-muted/40">
               <div className="flex justify-between gap-2">
                 <input
                   value={ex.text}
@@ -762,7 +788,7 @@ function StepsTab({
   }
 
   return (
-    <div className="max-w-md mx-auto bg-background border border-border rounded-lg p-6 text-center space-y-6">
+    <div className="max-w-md mx-auto bg-card border border-border rounded-xl shadow-sm p-6 text-center space-y-6">
       <div>
         <h3 className="text-2xl font-bold">Steps Tracker</h3>
         <p className="text-muted-foreground">Daily Goal: {STEPS_GOAL.toLocaleString()} steps</p>
@@ -770,13 +796,13 @@ function StepsTab({
 
       <div className="relative inline-block">
         <svg width="200" height="200" viewBox="0 0 200 200">
-          <circle cx="100" cy="100" r={radius} fill="none" stroke="hsl(0 0% 18%)" strokeWidth="14" />
+          <circle cx="100" cy="100" r={radius} fill="none" stroke="var(--muted)" strokeWidth="14" />
           <circle
             cx="100"
             cy="100"
             r={radius}
             fill="none"
-            stroke="oklch(0.55 0.25 295)"
+            stroke="var(--tertiary)"
             strokeWidth="14"
             strokeLinecap="round"
             strokeDasharray={`${circumference} ${circumference}`}
@@ -799,7 +825,7 @@ function StepsTab({
           onChange={(e) => setInput(e.target.value)}
           placeholder="Enter steps"
           required
-          className="w-full px-3 py-2 rounded-md bg-card border border-border text-center focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full px-3 py-2 rounded-md bg-background border border-border text-center focus:outline-none focus:ring-2 focus:ring-primary"
         />
         <button type="submit" className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground font-semibold">
           Update Steps
@@ -828,7 +854,7 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto bg-background border border-border rounded-lg p-5 space-y-4">
+    <div className="max-w-3xl mx-auto bg-card border border-border rounded-xl shadow-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
         <button
           onClick={() => shift(-1)}
@@ -894,7 +920,7 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
         ) : (
           <div className="space-y-4">
             {dayData.steps !== undefined && (
-              <div className="bg-card border border-border rounded-md p-3">
+              <div className="bg-muted/40 border border-border rounded-lg p-3">
                 <div className="text-xs text-muted-foreground uppercase tracking-wider">Steps Count</div>
                 <div className="text-2xl font-bold text-tertiary">{dayData.steps.toLocaleString()}</div>
                 <div className="text-xs text-muted-foreground">
@@ -903,7 +929,7 @@ function CalendarTab({ dailyData }: { dailyData: DailyData }) {
               </div>
             )}
             {dayData.workout && (
-              <div className="bg-card border border-border rounded-md p-3">
+              <div className="bg-muted/40 border border-border rounded-lg p-3">
                 <h5 className="font-semibold mb-2">{dayData.workout.name}</h5>
                 <div className="space-y-2">
                   {dayData.workout.exercises.map((ex) => (

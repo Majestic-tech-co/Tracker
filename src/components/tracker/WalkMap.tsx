@@ -70,7 +70,7 @@ export function WalkMap({ path, onAddPoint, liveLocation, flyTo }: WalkMapProps)
       <ClickAdder onAdd={onAddPoint} />
       <FitBounds path={path} center={flyTo ?? liveLocation} />
       {path.length > 1 && (
-        <Polyline positions={path} pathOptions={{ color: "#49c5b6", weight: 5, dashArray: "10,5" }} />
+        <Polyline positions={path} pathOptions={{ color: "#1d4e9f", weight: 5, dashArray: "10,5" }} />
       )}
       {path.map((p, i) => (
         <Marker key={i} position={p} />
