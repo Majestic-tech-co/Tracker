@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { z } from "zod";
 import { ChevronLeft, ChevronRight, Pencil, Trash2, Check, X } from "lucide-react";
 import { WalkMap } from "@/components/tracker/WalkMap";
 import {
@@ -9,6 +10,10 @@ import {
   type Walk,
   type Workout,
   STEPS_GOAL,
+  calculateDistance,
+  dailyDataSchema,
+  walksSchema,
+  workoutOrNullSchema,
   dateToString,
   generateSingleDayWorkoutPlan,
   totalDistance,
@@ -36,24 +41,132 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "calendar", label: "Calendar" },
 ];
 
-function useStored<T>(key: string, initial: T): [T, (next: T | ((prev: T) => T)) => void] {
+function useStored<T>(
+  key: string,
+  initial: T,
+  schema: z.ZodType<T>,
+  onError?: (message: string) => void,
+): [T, (next: T | ((prev: T) => T)) => void] {
   const [value, setValue] = useState<T>(initial);
   const loaded = useRef(false);
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  const warnedWrite = useRef(false);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(key);
-      if (raw) setValue(JSON.parse(raw) as T);
-    } catch {}
+      if (raw) {
+        const parsed = schema.safeParse(JSON.parse(raw));
+        if (parsed.success) {
+          setValue(parsed.data);
+        } else {
+          // Keep the unreadable data so it can be recovered, then start fresh.
+          localStorage.setItem(`${key}.invalid`, raw);
+          onErrorRef.current?.(`Saved "${key}" data was unreadable and has been reset.`);
+        }
+      }
+    } catch {
+      onErrorRef.current?.(`Saved "${key}" data could not be read.`);
+    }
     loaded.current = true;
-  }, [key]);
+  }, [key, schema]);
+
   useEffect(() => {
     if (!loaded.current) return;
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+      warnedWrite.current = false;
+    } catch {
+      if (!warnedWrite.current) {
+        warnedWrite.current = true;
+        onErrorRef.current?.(
+          "Could not save your data — browser storage may be full or disabled. Recent changes may be lost.",
+        );
+      }
+    }
   }, [key, value]);
+
   return [value, setValue];
 }
+
+const MAX_ACCURACY_M = 50; // ignore GPS fixes less accurate than this
+const MIN_STEP_KM = 0.005; // ignore points closer than 5 m to the last one
+
+function useWalkDraft() {
+  const [path, setPath] = useState<LatLng[]>([]);
+  const [walkName, setWalkName] = useState("");
+  const [walkDate, setWalkDate] = useState(dateToString(new Date()));
+  const [walkNotes, setWalkNotes] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [liveLocation, setLiveLocation] = useState<LatLng | null>(null);
+  const [flyTo, setFlyTo] = useState<LatLng | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  // One-off fix to centre the map. Only requested on user action via locate().
+  function locate() {
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation is not supported by this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
+        setLiveLocation(p);
+        setFlyTo(p);
+        setGeoError(null);
+      },
+      (err) => setGeoError(err.message || "Unable to get your location."),
+    );
+  }
+
+  // Continuous tracking only runs while the user is explicitly recording.
+  useEffect(() => {
+    if (!recording) return;
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation is not supported by this browser.");
+      setRecording(false);
+      return;
+    }
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
+        setLiveLocation(p);
+        setGeoError(null);
+        if (pos.coords.accuracy > MAX_ACCURACY_M) return;
+        setPath((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && calculateDistance(last[0], last[1], p[0], p[1]) < MIN_STEP_KM) return prev;
+          return [...prev, p];
+        });
+      },
+      (err) => {
+        setGeoError(err.message || "Unable to track your location.");
+        if (err.code === err.PERMISSION_DENIED) setRecording(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [recording]);
+
+  function reset() {
+    setRecording(false);
+    setPath([]);
+    setWalkName("");
+    setWalkDate(dateToString(new Date()));
+    setWalkNotes("");
+    setEditingId(null);
+  }
+
+  return {
+    path, setPath, walkName, setWalkName, walkDate, setWalkDate, walkNotes, setWalkNotes,
+    editingId, setEditingId, liveLocation, flyTo, setFlyTo, recording, setRecording,
+    geoError, locate, reset,
+  };
+}
+
+type WalkDraft = ReturnType<typeof useWalkDraft>;
 
 interface ModalState {
   open: boolean;
@@ -67,13 +180,20 @@ interface ModalState {
 
 function TrackerPage() {
   const [tab, setTab] = useState<TabKey>("welcome");
-  const [walks, setWalks] = useStored<Walk[]>("walks", []);
-  const [workout, setWorkout] = useStored<Workout | null>("singleDayWorkout", null);
-  const [dailyData, setDailyData] = useStored<DailyData>("dailyData", {});
-
   const [modal, setModal] = useState<ModalState>({ open: false, title: "", message: "" });
   const showAlert = (title: string, message: string, celebration = false) =>
     setModal({ open: true, title, message, celebration, cancelLabel: null });
+  const storageError = (message: string) => showAlert("Storage problem", message);
+
+  const [walks, setWalks] = useStored<Walk[]>("walks", [], walksSchema, storageError);
+  const [workout, setWorkout] = useStored<Workout | null>(
+    "singleDayWorkout",
+    null,
+    workoutOrNullSchema,
+    storageError,
+  );
+  const [dailyData, setDailyData] = useStored<DailyData>("dailyData", {}, dailyDataSchema, storageError);
+  const draft = useWalkDraft();
   const showConfirm = (title: string, message: string, onConfirm: () => void) =>
     setModal({ open: true, title, message, onConfirm, confirmLabel: "Delete", cancelLabel: "Cancel" });
   const closeModal = () => setModal((m) => ({ ...m, open: false }));
@@ -108,7 +228,7 @@ function TrackerPage() {
           >
             {tab === "welcome" && <WelcomeTab />}
             {tab === "walks" && (
-              <WalksTab walks={walks} setWalks={setWalks} showAlert={showAlert} showConfirm={showConfirm} />
+              <WalksTab draft={draft} walks={walks} setWalks={setWalks} showAlert={showAlert} showConfirm={showConfirm} />
             )}
             {tab === "workouts" && (
               <WorkoutsTab workout={workout} setWorkout={setWorkout} dailyData={dailyData} setDailyData={setDailyData} showAlert={showAlert} />
@@ -174,65 +294,32 @@ function WelcomeTab() {
 /* ---------------- Walks ---------------- */
 
 function WalksTab({
+  draft,
   walks,
   setWalks,
   showAlert,
   showConfirm,
 }: {
+  draft: WalkDraft;
   walks: Walk[];
   setWalks: (next: Walk[] | ((prev: Walk[]) => Walk[])) => void;
   showAlert: (t: string, m: string) => void;
   showConfirm: (t: string, m: string, onConfirm: () => void) => void;
 }) {
-  const [path, setPath] = useState<LatLng[]>([]);
-  const [walkName, setWalkName] = useState("");
-  const [walkDate, setWalkDate] = useState(dateToString(new Date()));
-  const [walkNotes, setWalkNotes] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const {
+    path, setPath, walkName, setWalkName, walkDate, setWalkDate, walkNotes, setWalkNotes,
+    editingId, setEditingId, liveLocation, flyTo, setFlyTo, recording, setRecording, geoError, locate,
+  } = draft;
+  const resetForm = draft.reset;
   const [locationQuery, setLocationQuery] = useState("");
-  const [liveLocation, setLiveLocation] = useState<LatLng | null>(null);
-  const [flyTo, setFlyTo] = useState<LatLng | null>(null);
-  const watchIdRef = useRef<number | null>(null);
 
   const distance = useMemo(() => totalDistance(path), [path]);
   const canSave = walkName.trim() !== "" && walkDate.trim() !== "" && path.length > 0;
 
-  // Live location tracking
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
-        setLiveLocation(p);
-        setFlyTo(p);
-      },
-      () => {},
-    );
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
-        setLiveLocation(p);
-        setPath((prev) => [...prev, p]);
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
-    );
-    return () => {
-      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-    };
-  }, []);
-
-  function resetForm() {
-    setPath([]);
-    setWalkName("");
-    setWalkDate(dateToString(new Date()));
-    setWalkNotes("");
-    setEditingId(null);
-  }
-
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!canSave) return;
+    setRecording(false);
     const newWalk: Walk = {
       id: editingId ?? Date.now(),
       walkName,
@@ -248,6 +335,7 @@ function WalksTab({
   }
 
   function handleEdit(walk: Walk) {
+    setRecording(false);
     setEditingId(walk.id);
     setWalkName(walk.walkName);
     setWalkDate(walk.walkDate);
@@ -282,9 +370,31 @@ function WalksTab({
 
   return (
     <div className="space-y-6">
-      <div className="text-sm text-muted-foreground bg-muted/50 border border-border rounded-md p-3">
-        Live location tracking is active. Your path will be drawn automatically. You can also click
-        on the map to add points manually.
+      <div className="text-sm text-muted-foreground bg-muted/50 border border-border rounded-md p-3 space-y-3">
+        <p>
+          {recording
+            ? "Recording your walk. Your path is drawn automatically."
+            : "Press Start to record your path with GPS, or click on the map to add points manually."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setRecording(!recording)}
+            className={`px-4 py-2 rounded-md font-semibold ${
+              recording ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
+            }`}
+          >
+            {recording ? "Stop Recording" : "Start Recording"}
+          </button>
+          <button
+            type="button"
+            onClick={locate}
+            className="px-4 py-2 rounded-md bg-muted text-foreground border border-border hover:bg-border"
+          >
+            Find My Location
+          </button>
+        </div>
+        {geoError && <p className="text-destructive" role="alert">{geoError}</p>}
       </div>
 
       <div className="bg-background border border-border rounded-lg p-5 space-y-4">
@@ -399,6 +509,7 @@ function WalksTab({
                 <button
                   type="button"
                   onClick={() => {
+                    setRecording(false);
                     setPath(walk.path);
                     if (walk.path.length > 0) setFlyTo(walk.path[0]);
                   }}

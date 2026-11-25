@@ -1,4 +1,6 @@
-export type LatLng = [number, number];
+import { z } from "zod";
+
+export type LatLng =[number, number];
 
 export interface Walk {
   id: number;
@@ -84,7 +86,33 @@ export function generateSingleDayWorkoutPlan(): Workout {
   };
 }
 
-export function useLocalStorage<T>(key: string, initial: T) {
-  // helper not used; we use inline hook in components for clarity
-  return [initial, (_: T) => {}] as const;
-}
+const latLngSchema = z.tuple([z.number(), z.number()]);
+
+const walkSchema = z.object({
+  id: z.number(),
+  walkName: z.string(),
+  walkDate: z.string(),
+  walkNotes: z.string(),
+  path: z.array(latLngSchema),
+  distance: z.number(),
+});
+
+const exerciseSetSchema = z.object({
+  weight: z.union([z.string(), z.number(), z.null()]),
+  reps: z.union([z.string(), z.number()]),
+  completed: z.boolean(),
+});
+
+const workoutSchema = z.object({
+  name: z.string(),
+  exercises: z.array(
+    z.object({ id: z.string(), text: z.string(), sets: z.array(exerciseSetSchema) }),
+  ),
+});
+
+export const walksSchema = z.array(walkSchema);
+export const workoutOrNullSchema = workoutSchema.nullable();
+export const dailyDataSchema = z.record(
+  z.string(),
+  z.object({ steps: z.number().optional(), workout: workoutSchema.optional() }),
+);
